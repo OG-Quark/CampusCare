@@ -1,9 +1,10 @@
 <script>
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { createClient } from '@supabase/supabase-js';
 	import { browser } from '$app/environment';
-	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+	import { goto } from '$app/navigation';
+	import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import StatusDropdown from '$lib/components/StatusDropdown.svelte';
+	import { createClient } from '@supabase/supabase-js';
+	import { onMount } from 'svelte';
 
 	let supabase;
 	let user = null;
@@ -21,7 +22,17 @@
 	let sortOrder = 'desc';
 	let pressedButtons = new Set();
 
-	const categories = ['All', 'Facilities', 'Safety', 'Academic', 'Technology', 'Food Services', 'Transportation', 'Housing', 'Other'];
+	const categories = [
+		'All',
+		'Facilities',
+		'Safety',
+		'Academic',
+		'Technology',
+		'Food Services',
+		'Transportation',
+		'Housing',
+		'Other'
+	];
 	const statuses = ['All', 'open', 'in_progress', 'resolved'];
 
 	const statusColors = {
@@ -39,14 +50,10 @@
 	onMount(async () => {
 		if (!supabase) return;
 
-		const { data: { user: currentUser } } = await supabase.auth.getUser();
+		const {
+			data: { user: currentUser }
+		} = await supabase.auth.getUser();
 		user = currentUser;
-
-		// Redirect to login if not authenticated
-		if (!user) {
-			goto('/login');
-			return;
-		}
 
 		await fetchIssues();
 
@@ -103,20 +110,20 @@
 
 		// Add press animation
 		pressedButtons.add(issueId);
-		
+
 		try {
 			const hasVoted = userVotes && userVotes.includes(user.id);
 			const newUpvotes = hasVoted ? currentUpvotes - 1 : currentUpvotes + 1;
 
 			let newUserVotes = userVotes || [];
 			if (hasVoted) {
-				newUserVotes = newUserVotes.filter(id => id !== user.id);
+				newUserVotes = newUserVotes.filter((id) => id !== user.id);
 			} else {
 				newUserVotes = [...newUserVotes, user.id];
 			}
 
 			// Update the local state immediately for instant feedback
-			issues = issues.map(issue => {
+			issues = issues.map((issue) => {
 				if (issue.id === issueId) {
 					return {
 						...issue,
@@ -136,7 +143,6 @@
 				.eq('id', issueId);
 
 			if (updateError) throw updateError;
-
 		} catch (err) {
 			console.error('Error updating upvote:', err);
 			// Revert the local state if there was an error
@@ -158,12 +164,19 @@
 		if (diffInDays === 0) return 'Today';
 		if (diffInDays === 1) return '1 day ago';
 		if (diffInDays < 7) return `${diffInDays} days ago`;
-		if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} week${Math.floor(diffInDays / 7) > 1 ? 's' : ''} ago`;
+		if (diffInDays < 30)
+			return `${Math.floor(diffInDays / 7)} week${Math.floor(diffInDays / 7) > 1 ? 's' : ''} ago`;
 		return `${Math.floor(diffInDays / 30)} month${Math.floor(diffInDays / 30) > 1 ? 's' : ''} ago`;
 	}
 
 	// Reactive statement to refetch when filters change
-	$: if (browser && (selectedCategory !== undefined || selectedStatus !== undefined || sortBy !== undefined || sortOrder !== undefined)) {
+	$: if (
+		browser &&
+		(selectedCategory !== undefined ||
+			selectedStatus !== undefined ||
+			sortBy !== undefined ||
+			sortOrder !== undefined)
+	) {
 		fetchIssues();
 	}
 </script>
@@ -171,103 +184,149 @@
 <svelte:head>
 	<title>Campus Issues Feed - CampusCare</title>
 	<script src="https://cdn.tailwindcss.com"></script>
-	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<link
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+		rel="stylesheet"
+	/>
 	<script>
 		tailwind.config = {
 			theme: {
 				extend: {
 					colors: {
-						'primary': '#007AFF',
+						primary: '#007AFF',
 						'primary-gradient-from': '#007AFF',
 						'primary-gradient-to': '#00C2FF',
 						'dark-bg': '#000',
-						'card-bg': 'rgba(30, 30, 30, 0.7)',
+						'card-bg': 'rgba(30, 30, 30, 0.7)'
 					},
 					fontFamily: {
-						'apple': ['SF Pro Display', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+						apple: [
+							'SF Pro Display',
+							'Inter',
+							'system-ui',
+							'-apple-system',
+							'BlinkMacSystemFont',
+							'Segoe UI',
+							'Roboto',
+							'sans-serif'
+						]
 					},
 					animation: {
 						'pulse-slow': 'pulse 8s infinite ease-in-out',
 						'pulse-medium': 'pulse 10s infinite ease-in-out',
 						'pulse-slower': 'pulse 12s infinite ease-in-out',
-						'float': 'float 6s ease-in-out infinite',
+						float: 'float 6s ease-in-out infinite'
 					},
 					keyframes: {
 						float: {
 							'0%, 100%': { transform: 'translateY(0px)' },
-							'50%': { transform: 'translateY(-10px)' },
+							'50%': { transform: 'translateY(-10px)' }
 						}
-					},
+					}
 				}
 			}
-		}
+		};
 	</script>
 </svelte:head>
 
-<div class="bg-dark-bg text-white font-apple min-h-screen overflow-x-hidden">
+<div class="bg-dark-bg font-apple min-h-screen overflow-x-hidden text-white">
 	<!-- Radiating circular glow background -->
-	<div class="fixed top-0 left-0 w-full h-full -z-10 overflow-hidden">
-		<div class="absolute rounded-full w-[300px] h-[300px] top-1/5 left-1/10 bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)] -translate-x-1/2 -translate-y-1/2 animate-pulse-slow"></div>
-		<div class="absolute rounded-full w-[500px] h-[500px] top-7/10 left-85/100 bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)] -translate-x-1/2 -translate-y-1/2 animate-pulse-slower"></div>
-		<div class="absolute rounded-full w-[400px] h-[400px] top-2/5 left-3/4 bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)] -translate-x-1/2 -translate-y-1/2 animate-pulse-medium"></div>
-		<div class="absolute rounded-full w-[250px] h-[250px] top-4/5 left-1/5 bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)] -translate-x-1/2 -translate-y-1/2 animate-pulse-slow"></div>
+	<div class="fixed top-0 left-0 -z-10 h-full w-full overflow-hidden">
+		<div
+			class="animate-pulse-slow absolute top-1/5 left-1/10 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)]"
+		></div>
+		<div
+			class="animate-pulse-slower absolute top-7/10 left-85/100 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)]"
+		></div>
+		<div
+			class="animate-pulse-medium absolute top-2/5 left-3/4 h-[400px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)]"
+		></div>
+		<div
+			class="animate-pulse-slow absolute top-4/5 left-1/5 h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_rgba(0,102,255,0.2)_0%,_rgba(0,0,0,0)_70%)]"
+		></div>
 	</div>
 
-	<div class="container mx-auto px-5">
+	<div class="container mx-auto px-4 sm:px-5">
 		<!-- Header -->
-		<header class="flex justify-between items-center py-6">
-			<a href="/" class="text-2xl font-bold flex items-center">
-				<span class="text-3xl mr-3">📢</span>
+		<header class="flex items-center justify-between py-6">
+			<a href="/" class="flex items-center text-xl font-bold sm:text-2xl">
+				<span class="mr-3 text-2xl sm:text-3xl">📢</span>
 				<span>CampusCare </span>
 			</a>
 
-			<div class="flex items-center space-x-4">
-				<a href="/report" class="bg-white text-black px-5 py-2.5 rounded-lg font-medium transition-transform hover:scale-105">Report Issue</a>
+			<div class="flex items-center space-x-2 sm:space-x-4">
+				<a
+					href="/report"
+					class="rounded-lg bg-white px-3 py-2 text-sm font-medium text-black transition-transform hover:scale-105 sm:px-5 sm:text-base"
+					>Report Issue</a
+				>
 				{#if user}
-					<button on:click={() => supabase.auth.signOut().then(() => goto('/login'))} class="bg-transparent text-white border border-white px-5 py-2.5 rounded-lg font-medium hover:bg-white/10 transition-colors">Sign Out</button>
+					<button
+						on:click={() => supabase.auth.signOut().then(() => goto('/login'))}
+						class="rounded-lg border border-white bg-transparent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 sm:px-5 sm:text-base"
+						>Sign Out</button
+					>
+				{:else}
+					<button
+						on:click={() => goto('/login')}
+						class="rounded-lg border border-white bg-transparent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 sm:px-5 sm:text-base"
+						>Sign In</button
+					>
 				{/if}
 			</div>
 		</header>
 
 		<!-- Horizontal Scrolling Feed -->
-		<section class="py-8">
-			<div class="mb-8 text-center">
-				<h1 class="text-4xl font-bold mb-4 animate-float">Campus Issues!</h1>
-				
+		<section class="py-6 sm:py-8">
+			<div class="mb-6 text-center sm:mb-8">
+				<h1 class="mb-3 text-3xl font-bold sm:mb-4 sm:text-4xl">Campus Issues!</h1>
 			</div>
 
 			<!-- Filters -->
-			<div class="bg-card-bg rounded-2xl p-6 backdrop-blur-md border border-white/10 mb-8">
-				<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+			<div class="mb-8 rounded-2xl border border-white/10 p-4 backdrop-blur-md sm:mb-10 sm:p-6">
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-300 mb-2">Category</label>
+						<label for="category-select" class="mb-2 block text-sm font-medium text-gray-300"
+							>Category</label
+						>
 						<select
+							id="category-select"
 							bind:value={selectedCategory}
-							class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							class="focus:ring-primary w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:border-transparent focus:ring-2 focus:outline-none"
 						>
 							{#each categories as category}
-								<option value={category === 'All' ? '' : category} class="bg-gray-800">{category}</option>
+								<option value={category === 'All' ? '' : category} class="bg-gray-800"
+									>{category}</option
+								>
 							{/each}
 						</select>
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-gray-300 mb-2">Status</label>
+						<label for="status-select" class="mb-2 block text-sm font-medium text-gray-300"
+							>Status</label
+						>
 						<select
+							id="status-select"
 							bind:value={selectedStatus}
-							class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							class="focus:ring-primary w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:border-transparent focus:ring-2 focus:outline-none"
 						>
 							{#each statuses as status}
-								<option value={status === 'All' ? '' : status} class="bg-gray-800 capitalize">{status === 'All' ? 'All' : status.replace('_', ' ')}</option>
+								<option value={status === 'All' ? '' : status} class="bg-gray-800 capitalize"
+									>{status === 'All' ? 'All' : status.replace('_', ' ')}</option
+								>
 							{/each}
 						</select>
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-gray-300 mb-2">Sort By</label>
+						<label for="sort-by-select" class="mb-2 block text-sm font-medium text-gray-300"
+							>Sort By</label
+						>
 						<select
+							id="sort-by-select"
 							bind:value={sortBy}
-							class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							class="focus:ring-primary w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:border-transparent focus:ring-2 focus:outline-none"
 						>
 							<option value="created_at" class="bg-gray-800">Date</option>
 							<option value="upvotes" class="bg-gray-800">Upvotes</option>
@@ -276,10 +335,13 @@
 					</div>
 
 					<div>
-						<label class="block text-sm font-medium text-gray-300 mb-2">Order</label>
+						<label for="order-select" class="mb-2 block text-sm font-medium text-gray-300"
+							>Order</label
+						>
 						<select
+							id="order-select"
 							bind:value={sortOrder}
-							class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							class="focus:ring-primary w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white focus:border-transparent focus:ring-2 focus:outline-none"
 						>
 							<option value="desc" class="bg-gray-800">Newest First</option>
 							<option value="asc" class="bg-gray-800">Oldest First</option>
@@ -291,94 +353,133 @@
 			<!-- Horizontal Scroll Container -->
 			<div class="relative">
 				{#if loading}
-					<div class="flex justify-center items-center py-20">
-						<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mr-3"></div>
+					<div class="flex items-center justify-center py-16 sm:py-20">
+						<div
+							class="border-primary mr-3 h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
+						></div>
 						<span class="text-gray-300">Loading issues...</span>
 					</div>
 				{:else if error}
-					<div class="bg-red-500/20 border border-red-500/50 text-red-300 px-6 py-4 rounded-lg text-center">
-						<span class="text-xl mr-2">⚠️</span>
+					<div
+						class="rounded-lg border border-red-500/50 bg-red-500/20 px-4 py-4 text-center text-red-300 sm:px-6"
+					>
+						<span class="mr-2 text-xl">⚠️</span>
 						<span>Error loading issues: {error}</span>
 					</div>
 				{:else if issues.length === 0}
-					<div class="text-center py-20">
-						<div class="text-6xl mb-4">🤔</div>
-						<h3 class="text-2xl font-semibold mb-2">No Issues Found</h3>
-						<p class="text-gray-400 mb-6">No issues match your current filters, or none have been reported yet.</p>
-						<a href="/report" class="bg-white text-black px-6 py-3 rounded-lg font-medium transition-transform hover:scale-105">Report the First Issue</a>
+					<div class="py-16 text-center sm:py-20">
+						<div class="mb-4 text-5xl sm:text-6xl">🤔</div>
+						<h3 class="mb-2 text-xl font-semibold sm:text-2xl">No Issues Found</h3>
+						<p class="mb-6 text-gray-400">
+							No issues match your current filters, or none have been reported yet.
+						</p>
+						<a
+							href="/report"
+							class="rounded-lg bg-white px-4 py-3 font-medium text-black transition-transform hover:scale-105 sm:px-6"
+							>Report the First Issue</a
+						>
 					</div>
 				{:else}
-					<div class="flex space-x-6 pb-8 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-						{#each issues as issue, index}
-							<div class="flex-shrink-0 w-80 snap-center transform transition-all duration-500 hover:scale-105">
-								<div class="bg-card-bg rounded-2xl p-6 backdrop-blur-md border border-white/10 h-full flex flex-col transform transition-all duration-300 hover:shadow-2xl hover:shadow-primary/30 animate-float" style="animation-delay: {index * 0.1}s;">
-									<!-- Header -->
-									<div class="flex justify-between items-start mb-4">
-										<div class="flex flex-wrap gap-2">
-											<span class="text-xs px-3 py-1 rounded-full bg-[rgba(0,122,255,0.2)] text-primary">
-												{issue.category}
-											</span>
-											{#if issue.priority}
-												<span class="text-xs px-3 py-1 rounded-full capitalize {priorityColors[issue.priority]}">
-													{issue.priority}
+					<!-- Responsive horizontal scroll container -->
+					<div class="relative">
+						<div
+							class="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto px-2 py-6 sm:gap-6 sm:px-8"
+						>
+							{#each issues as issue, index}
+								<div
+									class="w-72 flex-shrink-0 transform snap-center transition-all duration-500 hover:scale-105 sm:w-80 md:w-96"
+								>
+									<div
+										class="bg-card-bg hover:shadow-primary/30 animate-float flex h-full transform flex-col rounded-2xl border border-white/10 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-2xl sm:p-6"
+										style="animation-delay: {index * 0.1}s;"
+									>
+										<!-- Header -->
+										<div class="mb-3 flex items-start justify-between sm:mb-4">
+											<div class="flex flex-wrap gap-1 sm:gap-2">
+												<span
+													class="text-primary rounded-full bg-[rgba(0,122,255,0.2)] px-2 py-1 text-xs sm:px-3"
+												>
+													{issue.category}
 												</span>
-											{/if}
+												{#if issue.priority}
+													<span
+														class="rounded-full px-2 py-1 text-xs capitalize sm:px-3 {priorityColors[
+															issue.priority
+														]}"
+													>
+														{issue.priority}
+													</span>
+												{/if}
+											</div>
+											<span class="text-xs text-gray-400">{formatDate(issue.created_at)}</span>
 										</div>
-										<span class="text-xs text-gray-400">{formatDate(issue.created_at)}</span>
-									</div>
 
-									<!-- Title and Status -->
-									<div class="mb-3 flex-1">
-										<div class="flex items-center gap-2 mb-2">
-											<h3 class="text-lg font-semibold flex-1">{issue.title}</h3>
-											<span class="text-xs px-2 py-1 rounded-full capitalize {statusColors[issue.status]}">
-												{issue.status.replace('_', ' ')}
-											</span>
+										<!-- Title and Status -->
+										<div class="mb-3 flex-1">
+											<div class="mb-2 flex items-center gap-2">
+												<h3 class="flex-1 text-base font-semibold sm:text-lg">{issue.title}</h3>
+												<!-- <span
+													class="rounded-full px-2 py-1 text-xs capitalize {statusColors[
+														issue.status
+													]}"
+												>
+													{issue.status.replace('_', ' ')}
+												</span> -->
+												<StatusDropdown {issue} />
+											</div>
+
+											<!-- Description -->
+											<p class="line-clamp-3 text-sm leading-relaxed text-gray-300">
+												{issue.description}
+											</p>
 										</div>
-										
-										<!-- Description -->
-										<p class="text-gray-300 text-sm leading-relaxed line-clamp-3">
-											{issue.description}
-										</p>
-									</div>
 
-									<!-- Location -->
-									{#if issue.location}
-										<div class="flex items-center gap-1 mb-4 text-sm text-gray-400">
-											<span>📍</span>
-											<span>{issue.location}</span>
-										</div>
-									{/if}
+										<!-- Location -->
+										{#if issue.location}
+											<div class="mb-3 flex items-center gap-1 text-sm text-gray-400 sm:mb-4">
+												<span>📍</span>
+												<span>{issue.location}</span>
+											</div>
+										{/if}
 
-									<!-- Footer -->
-									<div class="flex justify-between items-center mt-auto">
-										<button
-											on:click={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
-											class="upvote-btn flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 ease-out 
-											{issue.user_votes && user && issue.user_votes.includes(user.id) ? 
-												'border border-green-400/50 bg-green-500/30 text-green-300' : 
-												'border border-red-400/50 bg-red-500/30 text-red-300'} 
-											{pressedButtons.has(issue.id) ? 'scale-95' : ''}"
-										>
-											<span>{issue.user_votes && user && issue.user_votes.includes(user.id) ? '▲' : '▼'}</span>
-											<span class="font-semibold">{issue.upvotes || 0}</span>
-										</button>
+										<!-- Footer -->
+										<div class="mt-auto flex items-center justify-between">
+											<button
+												on:click={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
+												class="upvote-btn flex items-center gap-2 rounded-full px-3 py-1.5 transition-all duration-300 ease-out sm:px-4 sm:py-2
+												{issue.user_votes && user && issue.user_votes.includes(user.id)
+													? 'border border-green-400/50 bg-green-500/30 text-green-300'
+													: 'border border-red-400/50 bg-red-500/30 text-red-300'}
+												{pressedButtons.has(issue.id) ? 'scale-95' : ''}"
+											>
+												<span
+													>{issue.user_votes && user && issue.user_votes.includes(user.id)
+														? '▲'
+														: '▼'}</span
+												>
+												<span class="font-semibold">{issue.upvotes || 0}</span>
+											</button>
 
-										<div class="flex items-center gap-1 text-sm text-gray-400">
-											<span>👤</span>
-											<span>{issue.username || 'Anonymous'}</span>
+											<div class="flex items-center gap-1 text-xs text-gray-400 sm:text-sm">
+												<span>👤</span>
+												<span>{issue.username || 'Anonymous'}</span>
+											</div>
 										</div>
 									</div>
 								</div>
-							</div>
-						{/each}
-					</div>
+							{/each}
+						</div>
 
-					<!-- Scroll indicators -->
-					<div class="flex justify-center space-x-2 mt-4">
-						{#each issues as _, index}
-							<div class="w-2 h-2 rounded-full bg-white/20 transition-all duration-300 {index === 0 ? 'bg-primary w-4' : ''}"></div>
-						{/each}
+						<!-- Scroll indicators -->
+						<div class="mt-4 flex justify-center space-x-2">
+							{#each issues as _, index}
+								<div
+									class="h-2 w-2 rounded-full bg-white/20 transition-all duration-300 {index === 0
+										? 'bg-primary w-4'
+										: ''}"
+								></div>
+							{/each}
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -386,8 +487,8 @@
 	</div>
 
 	<!-- Footer -->
-	<footer class="text-center py-10 border-t border-white/10 mt-16 text-gray-400">
-		<div class="container mx-auto max-w-6xl px-5">
+	<footer class="mt-12 border-t border-white/10 py-8 text-center text-gray-400 sm:mt-16 sm:py-10">
+		<div class="container mx-auto max-w-6xl px-4 sm:px-5">
 			<p>© 2025 CampusCare - Empowering Student Communities</p>
 		</div>
 	</footer>
@@ -401,31 +502,39 @@
 	.scrollbar-hide::-webkit-scrollbar {
 		display: none;
 	}
-	
+
 	.snap-x {
 		scroll-snap-type: x mandatory;
 	}
-	
+
 	.snap-center {
 		scroll-snap-align: center;
 	}
-	
+
 	/* Custom scrollbar for webkit */
 	::-webkit-scrollbar {
 		height: 8px;
 	}
-	
+
 	::-webkit-scrollbar-track {
 		background: rgba(255, 255, 255, 0.1);
 		border-radius: 4px;
 	}
-	
+
 	::-webkit-scrollbar-thumb {
 		background: rgba(0, 122, 255, 0.5);
 		border-radius: 4px;
 	}
-	
+
 	::-webkit-scrollbar-thumb:hover {
 		background: rgba(0, 122, 255, 0.7);
+	}
+
+	/* Responsive line clamp for description */
+	.line-clamp-3 {
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 </style>
