@@ -1,8 +1,9 @@
 <script>
-	import { onMount } from 'svelte';
-	import { createClient } from '@supabase/supabase-js';
 	import { browser } from '$app/environment';
-	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+	import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import '$lib/admin-console';
+	import { createClient } from '@supabase/supabase-js';
+	import { onMount } from 'svelte';
 	import { writable } from 'svelte/store';
 	import '../app.css';
 
@@ -30,6 +31,17 @@
 			return () => subscription.unsubscribe();
 		});
 	}
+
+	onMount(() => {
+		// Optional: Auto-show help when console opens
+		if (typeof window !== 'undefined') {
+			// Add a welcome message
+			console.log(`
+🎓 Campus Ticket System Admin Commands:
+Type 'showAdminHelp()' for promotion instructions
+      `);
+		}
+	});
 </script>
 
 <svelte:head>
