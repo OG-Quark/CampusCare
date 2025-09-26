@@ -20,6 +20,9 @@
 	let sortBy = 'created_at';
 	let sortOrder = 'desc';
 
+	// Add a reactive variable to track pressed buttons
+	let pressedButtons = new Set();
+
 	const categories = ['All', 'Facilities', 'Safety', 'Academic', 'Technology', 'Food Services', 'Transportation', 'Housing', 'Other'];
 	const statuses = ['All', 'open', 'in_progress', 'resolved'];
 
@@ -94,6 +97,9 @@
 			return;
 		}
 
+		// Add press animation
+		pressedButtons.add(issueId);
+		
 		try {
 			const hasVoted = userVotes && userVotes.includes(user.id);
 			const newUpvotes = hasVoted ? currentUpvotes - 1 : currentUpvotes + 1;
@@ -104,6 +110,18 @@
 			} else {
 				newUserVotes = [...newUserVotes, user.id];
 			}
+
+			// Update the local state immediately for instant feedback
+			issues = issues.map(issue => {
+				if (issue.id === issueId) {
+					return {
+						...issue,
+						upvotes: newUpvotes,
+						user_votes: newUserVotes
+					};
+				}
+				return issue;
+			});
 
 			const { error: updateError } = await supabase
 				.from('issues')
@@ -117,6 +135,13 @@
 
 		} catch (err) {
 			console.error('Error updating upvote:', err);
+			// Revert the local state if there was an error
+			await fetchIssues();
+		} finally {
+			// Remove the pressed state after animation completes
+			setTimeout(() => {
+				pressedButtons.delete(issueId);
+			}, 300);
 		}
 	}
 
@@ -344,12 +369,15 @@
 							<!-- Footer -->
 							<div class="flex justify-between items-center">
 								<button
-									on:click={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
-									class="upvote-btn flex items-center gap-2 px-4 py-2 rounded-full transition-colors {issue.user_votes && user && issue.user_votes.includes(user.id) ? 'bg-[rgba(0,122,255,0.3)] text-primary' : 'bg-white/10 text-white hover:bg-[rgba(0,122,255,0.2)]'}"
-								>
-									<span>▲</span>
-									<span class="font-semibold">{issue.upvotes || 0}</span>
-								</button>
+    on:click={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
+    class="upvote-btn flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 ease-out 
+    {issue.user_votes && user && issue.user_votes.includes(user.id) ?  
+        'bg-red-500/30 text-red-300 border border-red-400/50':'bg-blue-500/30 text-blue-300 border border-blue-400/50'``} 
+    {pressedButtons.has(issue.id) ? 'scale-95' : ''}"
+>
+    <span>{issue.user_votes && user && issue.user_votes.includes(user.id) ?  '▲': '▼'}</span>
+    <span class="font-semibold">{issue.upvotes || 0}</span>
+</button>
 
 								<div class="flex items-center gap-4 text-sm text-gray-400">
 									<div class="flex items-center gap-1">
