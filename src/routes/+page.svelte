@@ -21,6 +21,10 @@
 	let sortBy = 'created_at';
 	let sortOrder = 'desc';
 	let pressedButtons = new Set();
+	
+	// Modal state
+	let selectedIssue = null;
+	let showModal = false;
 
 	const categories = [
 		'All',
@@ -102,6 +106,46 @@
 		}
 	}
 
+	function openIssueModal(issue) {
+		selectedIssue = issue;
+		showModal = true;
+		// Prevent body scroll when modal is open
+		document.body.style.overflow = 'hidden';
+	}
+
+	function closeIssueModal() {
+		console.log('Close button clicked'); // Debug log
+		showModal = false;
+		selectedIssue = null;
+		console.log('showModal should be false:', showModal); // Debug log
+		
+		if (browser) {
+			document.body.style.overflow = 'auto';
+		}
+	}
+	// Close modal when clicking outside
+	function handleBackdropClick(event) {
+		if (event.target === event.currentTarget) {
+			closeIssueModal();
+		}
+	}
+
+	// Close modal with Escape key
+	function handleKeydown(event) {
+		if (event.key === 'Escape' && showModal) {
+			closeIssueModal();
+		}
+	}
+
+	$: if (browser) {
+		// Add/remove event listener based on modal state
+		if (showModal) {
+			window.addEventListener('keydown', handleKeydown);
+		} else {
+			window.removeEventListener('keydown', handleKeydown);
+		}
+	}
+
 	async function toggleUpvote(issueId, currentUpvotes, userVotes) {
 		if (!supabase || !user) {
 			goto('/login');
@@ -133,6 +177,15 @@
 				}
 				return issue;
 			});
+
+			// Also update the modal issue if it's the same one
+			if (selectedIssue && selectedIssue.id === issueId) {
+				selectedIssue = {
+					...selectedIssue,
+					upvotes: newUpvotes,
+					user_votes: newUserVotes
+				};
+			}
 
 			const { error: updateError } = await supabase
 				.from('issues')
@@ -390,8 +443,9 @@
 									class="w-72 flex-shrink-0 transform snap-center transition-all duration-500 hover:scale-105 sm:w-80 md:w-96"
 								>
 									<div
-										class="bg-card-bg hover:shadow-primary/30 animate-float flex h-full transform flex-col rounded-2xl border border-white/10 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-2xl sm:p-6"
+										class="bg-card-bg hover:shadow-primary/30 animate-float flex h-full transform flex-col rounded-2xl border border-white/10 p-4 backdrop-blur-md transition-all duration-300 hover:shadow-2xl sm:p-6 cursor-pointer"
 										style="animation-delay: {index * 0.1}s;"
+										on:click={() => openIssueModal(issue)}
 									>
 										<!-- Header -->
 										<div class="mb-3 flex items-start justify-between sm:mb-4">
@@ -418,13 +472,6 @@
 										<div class="mb-3 flex-1">
 											<div class="mb-2 flex items-center gap-2">
 												<h3 class="flex-1 text-base font-semibold sm:text-lg">{issue.title}</h3>
-												<!-- <span
-													class="rounded-full px-2 py-1 text-xs capitalize {statusColors[
-														issue.status
-													]}"
-												>
-													{issue.status.replace('_', ' ')}
-												</span> -->
 												<StatusDropdown {issue} />
 											</div>
 
@@ -445,7 +492,7 @@
 										<!-- Footer -->
 										<div class="mt-auto flex items-center justify-between">
 											<button
-												on:click={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
+												on:click|stopPropagation={() => toggleUpvote(issue.id, issue.upvotes, issue.user_votes)}
 												class="upvote-btn flex items-center gap-2 rounded-full px-3 py-1.5 transition-all duration-300 ease-out sm:px-4 sm:py-2
 												{issue.user_votes && user && issue.user_votes.includes(user.id)
 													? 'border border-green-400/50 bg-green-500/30 text-green-300'
@@ -492,6 +539,104 @@
 			<p>© 2025 CampusCare - Empowering Student Communities</p>
 		</div>
 	</footer>
+
+	<!-- Issue Detail Modal -->
+	<!-- Issue Detail Modal -->
+{#if showModal && selectedIssue}
+<div 
+	class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+	on:click={handleBackdropClick}
+>
+	<div 
+		class="relative max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-2xl border-2 border-blue-400/30 bg-card-bg shadow-2xl shadow-blue-500/20 backdrop-blur-md animate-in fade-in-zoom-in duration-300"
+		on:click|stopPropagation
+	>
+		<!-- Close Button -->
+		<button
+			on:click|preventDefault={closeIssueModal}
+			class="absolute right-4 top-4 z-10 rounded-full bg-white/10 p-2 transition-all hover:bg-white/20 hover:scale-110"
+			aria-label="Close modal"
+		>
+			<svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+			</svg>
+		</button>
+
+		<!-- Modal Content -->
+		<div class="p-6 sm:p-8">
+			<!-- Header -->
+			<div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+				<div class="flex flex-wrap gap-2">
+					<span class="rounded-full bg-[rgba(0,122,255,0.2)] px-3 py-1 text-sm text-primary">
+						{selectedIssue.category}
+					</span>
+					{#if selectedIssue.priority}
+						<span class="rounded-full px-3 py-1 text-sm capitalize {priorityColors[selectedIssue.priority]}">
+							{selectedIssue.priority}
+						</span>
+					{/if}
+					<span class="rounded-full px-3 py-1 text-sm capitalize {statusColors[selectedIssue.status]}">
+						{selectedIssue.status.replace('_', ' ')}
+					</span>
+				</div>
+				<span class="text-sm text-gray-400">{formatDate(selectedIssue.created_at)}</span>
+			</div>
+
+			<!-- Title -->
+			<h2 class="mb-4 text-2xl font-bold sm:text-3xl">{selectedIssue.title}</h2>
+
+			<!-- Image if available -->
+			{#if selectedIssue.image_url}
+				<div class="mb-6">
+					<img 
+						src={selectedIssue.image_url} 
+						alt="Issue photo" 
+						class="w-full rounded-lg object-cover max-h-96"
+					/>
+				</div>
+			{/if}
+
+			<!-- Description -->
+			<div class="mb-6">
+				<h3 class="mb-3 text-lg font-semibold text-gray-300">Description</h3>
+				<p class="text-gray-200 leading-relaxed whitespace-pre-wrap">{selectedIssue.description}</p>
+			</div>
+
+			<!-- Location -->
+			{#if selectedIssue.location}
+				<div class="mb-6 flex items-center gap-2 text-gray-300">
+					<span class="text-lg">📍</span>
+					<span class="text-lg">{selectedIssue.location}</span>
+				</div>
+			{/if}
+
+			<!-- Footer -->
+			<div class="flex items-center justify-between border-t border-white/10 pt-6">
+				<button
+					on:click={() => toggleUpvote(selectedIssue.id, selectedIssue.upvotes, selectedIssue.user_votes)}
+					class="upvote-btn flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-300 ease-out
+					{selectedIssue.user_votes && user && selectedIssue.user_votes.includes(user.id)
+						? 'border border-green-400/50 bg-green-500/30 text-green-300'
+						: 'border border-red-400/50 bg-red-500/30 text-red-300'}
+					{pressedButtons.has(selectedIssue.id) ? 'scale-95' : ''}"
+				>
+					<span
+						>{selectedIssue.user_votes && user && selectedIssue.user_votes.includes(user.id)
+							? '▲'
+							: '▼'}</span
+					>
+					<span class="font-semibold">{selectedIssue.upvotes || 0}</span>
+				</button>
+
+				<div class="flex items-center gap-2 text-gray-400">
+					<span class="text-lg">👤</span>
+					<span class="text-lg">{selectedIssue.username || 'Anonymous'}</span>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{/if}
 </div>
 
 <style>
@@ -536,5 +681,25 @@
 		-webkit-line-clamp: 3;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+	}
+
+	/* Modal animations */
+	.modal-enter {
+		opacity: 0;
+		transform: scale(0.95);
+	}
+	.modal-enter-active {
+		opacity: 1;
+		transform: scale(1);
+		transition: opacity 300ms, transform 300ms;
+	}
+	.modal-exit {
+		opacity: 1;
+		transform: scale(1);
+	}
+	.modal-exit-active {
+		opacity: 0;
+		transform: scale(0.95);
+		transition: opacity 300ms, transform 300ms;
 	}
 </style>
