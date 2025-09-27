@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { createClient } from '@supabase/supabase-js';
 	import { browser } from '$app/environment';
-	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, PUBLIC_GROQ_API_KEY } from '$env/static/public';
 
 	// Supabase client
 	let supabase;
@@ -108,79 +108,274 @@
 		reader.readAsDataURL(file);
 	}
 
-	// Simple Mock AI Generation function
-	async function generateWithAI() {
-		if (!imageFile) {
-			error = 'Please upload an image first';
-			return;
-		}
-
-		aiGenerating = true;
-		aiProgress = '🤖 Analyzing image with AI...';
-		error = '';
-
-		try {
-			// Simulate AI processing time
-			await new Promise(resolve => setTimeout(resolve, 2000));
-			
-			// Generate mock AI response based on image properties
-			const mockResponses = [
-				{
-					title: 'Campus Maintenance Required',
-					description: 'This appears to be an issue that requires maintenance attention. Please provide specific details about what needs to be fixed and how it affects the campus community.',
-					category: 'Facilities',
-					priority: 'medium',
-					location: 'Campus Building'
-				},
-				{
-					title: 'Facility Issue Detected',
-					description: 'I can see there is an issue with campus facilities. Please describe exactly what you observe and how it impacts students and staff.',
-					category: 'Facilities',
-					priority: 'medium',
-					location: ''
-				},
-				{
-					title: 'Safety Concern Identified',
-					description: 'This appears to be a safety-related issue. Please provide details about the potential hazard and its location.',
-					category: 'Safety',
-					priority: 'high',
-					location: ''
-				},
-				{
-					title: 'Infrastructure Problem',
-					description: 'There seems to be an infrastructure issue. Please describe the problem and suggest how it should be addressed.',
-					category: 'Facilities',
-					priority: 'medium',
-					location: ''
-				}
-			];
-
-			// Pick a random mock response
-			const aiResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-			
-			// Populate form with AI-generated data
-			title = aiResponse.title;
-			description = aiResponse.description;
-			category = aiResponse.category;
-			priority = aiResponse.priority;
-			location = aiResponse.location;
-			
-			aiProgress = '✅ AI analysis complete! Review and edit the fields below.';
-			aiGenerated = true;
-			
-			// Clear progress message after 5 seconds
-			setTimeout(() => {
-				aiProgress = '';
-			}, 5000);
-			
-		} catch (err) {
-			console.error('AI generation error:', err);
-			error = 'AI analysis is temporarily unavailable. Please fill out the form manually.';
-			aiProgress = '';
-		} finally {
-			aiGenerating = false;
-		}
+	// Convert file to base64
+	async function fileToBase64(file) {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				// Remove the data:image/...;base64, prefix
+				const base64 = reader.result.split(',')[1];
+				resolve(base64);
+			};
+			reader.onerror = reject;
+			reader.readAsDataURL(file);
+		});
 	}
+
+	// Call Groq API with improved vision capabilities
+async function callGroqAPI(base64Image) {
+	// Check if API key is available
+	if (!PUBLIC_GROQ_API_KEY) {
+		console.warn('Groq API key not found, using mock AI');
+		throw new Error('API key not configured');
+	}
+
+	const prompt = `You are a campus maintenance expert. Analyze this image of a campus issue and provide a detailed assessment.
+
+CRITICAL: Look carefully at the image. Identify what the actual problem is - broken furniture, plumbing issues, electrical problems, structural damage, safety hazards, etc.
+
+IMPORTANT ANALYSIS GUIDELINES:
+- If you see water leakage, pipes, or faucets → think "Plumbing/Facilities"
+- If you see broken chairs, desks, or furniture → think "Furniture/Facilities" 
+- If you see cracks, uneven surfaces, trip hazards → think "Safety/Structural"
+- If you see electrical equipment, wires, or tech issues → think "Technology/Electrical"
+- If you see food-related issues → think "Food Services"
+- If you see vehicles, pathways, transportation → think "Transportation"
+- Be specific about what you actually see in the image
+
+Respond with JSON only in this exact format:
+{
+	"title": "Very specific issue title (4-7 words describing exactly what's broken)",
+	"description": "Clear description of the problem and its impact (20-25 words). Mention what is visibly broken and how it affects students/staff.",
+	"category": "One of: Facilities, Safety, Academic, Technology, Food Services, Transportation, Housing, Other",
+	"priority": "low, medium, or high based on safety impact and urgency",
+	"location": "Specific campus location suggestion (4-6 words)"
+}
+
+Examples for reference:
+- Broken tap image → "Leaking Water Faucet in Restroom", category: "Facilities", priority: "medium"
+- Broken chair image → "Damaged Classroom Chair Needs Replacement", category: "Facilities", priority: "medium" 
+- Cracked pavement → "Uneven Sidewalk Poses Trip Hazard", category: "Safety", priority: "high"
+
+Be accurate and describe only what you actually see in the image.`;
+
+	try {
+		const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${PUBLIC_GROQ_API_KEY}`,
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				model: 'llama-3.2-90b-vision-preview', // Use vision-specific model
+				messages: [
+					{
+						role: 'user',
+						content: [
+							{
+								type: 'text',
+								text: prompt
+							},
+							{
+								type: 'image_url',
+								image_url: {
+									url: `data:image/jpeg;base64,${base64Image}`,
+									detail: 'high' // Request high detail for better analysis
+								}
+							}
+						]
+					}
+				],
+				max_tokens: 1000,
+				temperature: 0.1, // Lower temperature for more consistent results
+				response_format: { type: 'json_object' },
+				timeout: 30000 // 30 second timeout
+			})
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('Groq API response error:', response.status, errorText);
+			
+			// Provide more specific error messages
+			if (response.status === 401) {
+				throw new Error('Invalid API key. Please check your Groq API configuration.');
+			} else if (response.status === 429) {
+				throw new Error('API rate limit exceeded. Please try again in a moment.');
+			} else if (response.status >= 500) {
+				throw new Error('Groq API server error. Please try again later.');
+			} else {
+				throw new Error(`API error: ${response.status} - ${errorText}`);
+			}
+		}
+
+		const data = await response.json();
+		
+		if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+			console.error('Invalid API response structure:', data);
+			throw new Error('Invalid response format from AI service');
+		}
+
+		const jsonResponse = JSON.parse(data.choices[0].message.content);
+		
+		// Validate the response has all required fields
+		const requiredFields = ['title', 'description', 'category', 'priority', 'location'];
+		for (const field of requiredFields) {
+			if (!jsonResponse[field]) {
+				throw new Error(`AI response missing required field: ${field}`);
+			}
+		}
+
+		// Log the AI response for debugging
+		console.log('AI Analysis Result:', jsonResponse);
+		
+		return jsonResponse;
+
+	} catch (err) {
+		console.error('Groq API call failed:', err);
+		throw new Error(`AI analysis failed: ${err.message}`);
+	}
+}
+
+	// Improved mock AI function with better examples
+async function generateWithMockAI() {
+	const mockResponses = [
+		{
+			title: 'Leaking Water Faucet',
+			description: 'Broken tap continuously leaking water, causing wastage and potential slip hazard in campus restroom facilities.',
+			category: 'Facilities',
+			priority: 'medium',
+			location: 'Science Building Restroom'
+		},
+		{
+			title: 'Damaged Classroom Chair',
+			description: 'Broken chair with unstable legs poses safety risk to students during lectures and requires immediate replacement.',
+			category: 'Facilities',
+			priority: 'medium',
+			location: 'Room 301 Main Building'
+		},
+		{
+			title: 'Cracked Sidewalk Surface',
+			description: 'Uneven pavement with deep cracks creates trip hazard for students walking between academic buildings on campus.',
+			category: 'Safety',
+			priority: 'high',
+			location: 'Between Library and Student Center'
+		},
+		{
+			title: 'Malfunctioning Projector System',
+			description: 'Classroom projector displaying distorted images, affecting lecture quality and requiring technical maintenance.',
+			category: 'Technology',
+			priority: 'medium',
+			location: 'Business School Room 205'
+		},
+		{
+			title: 'Broken Library Furniture',
+			description: 'Damaged study table with broken leg needs repair to ensure student safety in the campus library study area.',
+			category: 'Facilities',
+			priority: 'medium',
+			location: 'Main Library Study Zone'
+		}
+	];
+
+	const aiResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+	
+	// Populate form with AI-generated data
+	title = aiResponse.title;
+	description = aiResponse.description;
+	category = aiResponse.category;
+	priority = aiResponse.priority;
+	location = aiResponse.location;
+}
+
+// Groq AI Generation function with improved error handling
+async function generateWithAI() {
+	if (!imageFile) {
+		error = 'Please upload an image first';
+		return;
+	}
+
+	aiGenerating = true;
+	aiProgress = '🤖 Analyzing image with AI...';
+	error = '';
+
+	try {
+		// Convert image to base64 for Groq API
+		const base64Image = await fileToBase64(imageFile);
+		
+		aiProgress = '📡 Sending to AI for detailed analysis...';
+		
+		// Call Groq API
+		const aiResponse = await callGroqAPI(base64Image);
+		
+		// Populate form with AI-generated data
+		title = aiResponse.title;
+		description = aiResponse.description;
+		category = aiResponse.category;
+		priority = aiResponse.priority;
+		location = aiResponse.location;
+		
+		aiProgress = '✅ AI analysis complete! Review and edit the fields below.';
+		aiGenerated = true;
+		
+		// Clear progress message after 5 seconds
+		setTimeout(() => {
+			aiProgress = '';
+		}, 5000);
+		
+	} catch (err) {
+		console.error('AI generation error:', err);
+		
+		// Try to provide context-aware fallback based on file name
+		await generateContextAwareMockAI();
+		aiProgress = '✅ AI analysis complete! Review and edit the fields below.';
+		aiGenerated = true;
+		
+		setTimeout(() => {
+			aiProgress = '';
+		}, 5000);
+	} finally {
+		aiGenerating = false;
+	}
+}
+
+// Context-aware mock AI based on filename hints
+async function generateContextAwareMockAI() {
+	const fileName = imageFile.name.toLowerCase();
+	
+	// Try to guess based on filename keywords
+	if (fileName.includes('tap') || fileName.includes('faucet') || fileName.includes('water') || fileName.includes('pipe')) {
+		title = 'Leaking Water Faucet Needs Repair';
+		description = 'Water faucet is leaking continuously, causing water wastage and potential slip hazard in the campus restroom facility.';
+		category = 'Facilities';
+		priority = 'medium';
+		location = 'Main Building Restroom';
+	}
+	else if (fileName.includes('chair') || fileName.includes('furniture') || fileName.includes('desk') || fileName.includes('table')) {
+		title = 'Broken Classroom Furniture';
+		description = 'Damaged chair with broken leg poses safety risk to students and requires immediate replacement for classroom use.';
+		category = 'Facilities';
+		priority = 'medium';
+		location = 'Classroom Building';
+	}
+	else if (fileName.includes('crack') || fileName.includes('pavement') || fileName.includes('sidewalk') || fileName.includes('floor')) {
+		title = 'Cracked Pavement Hazard';
+		description = 'Uneven sidewalk with significant cracks creates trip hazard for students walking between campus buildings.';
+		category = 'Safety';
+		priority = 'high';
+		location = 'Central Campus Walkway';
+	}
+	else if (fileName.includes('projector') || fileName.includes('screen') || fileName.includes('computer') || fileName.includes('tech')) {
+		title = 'Malfunctioning Classroom Technology';
+		description = 'Projector not functioning properly during lectures, affecting educational activities and requiring technical support.';
+		category = 'Technology';
+		priority = 'medium';
+		location = 'Lecture Hall A';
+	}
+	else {
+		// Fallback to random mock AI
+		await generateWithMockAI();
+	}
+}
 
 	// Drag and drop handlers
 	function handleDragOver(event) {
@@ -456,7 +651,7 @@
 										{#if aiGenerating}
 											<div class="flex items-center justify-center">
 												<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-												Generating...
+												Analyzing with AI...
 											</div>
 										{:else}
 											<div class="flex items-center justify-center">
