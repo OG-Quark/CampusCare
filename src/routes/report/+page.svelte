@@ -691,13 +691,16 @@ Be accurate and describe only what you actually see in the image.`;
 				<form on:submit={submitReport} class="space-y-6">
 					<!-- Image Upload Section -->
 					<div>
-						<label class="mb-3 block text-sm font-medium text-gray-300">
+						<label for="image-upload" class="mb-3 block text-sm font-medium text-gray-300">
 							Issue Photo *
 							{#if !imageFile}
 								<span class="ml-1 text-red-400">(Required)</span>
 							{/if}
 						</label>
 						<div
+							role="button"
+							tabindex="0"
+							aria-label="Image upload area. Drag and drop an image file here or click to browse."
 							class="border-2 border-dashed {imageFile
 								? 'border-green-400/50'
 								: 'border-white/20'} hover:border-primary/50 cursor-pointer rounded-lg p-6 text-center transition-all duration-300 hover:bg-white/5 {isDragging
@@ -706,6 +709,12 @@ Be accurate and describe only what you actually see in the image.`;
 							on:dragover={handleDragOver}
 							on:dragleave={handleDragLeave}
 							on:drop={handleDrop}
+							on:keydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									document.getElementById('image-upload')?.click();
+								}
+							}}
 						>
 							{#if imagePreview}
 								<div class="mb-4">
